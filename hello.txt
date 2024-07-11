@@ -1,0 +1,515 @@
+
+Bun logoBun
+Search the docs...
+
+/
+
+Docs
+Guides
+Blog
+Discord logo
+GitHub logo
+Intro
+
+What is Bun?
+
+Installation
+
+Quickstart
+
+TypeScript
+
+Templating
+
+bun init
+
+bun create
+
+Runtime
+
+bun run
+
+File types
+
+TypeScript
+
+JSX
+
+Environment variables
+
+Bun APIs
+
+Web APIs
+
+Node.js compatibility
+
+Single-file executable
+
+Plugins
+
+Watch mode
+
+Module resolution
+
+Auto-install
+
+bunfig.toml
+
+Debugger
+
+Framework APISOON
+
+Package manager
+
+bun install
+
+bun add
+
+bun remove
+
+bun update
+
+bun link
+
+bun pm
+
+Global cache
+
+Workspaces
+
+Lifecycle scripts
+
+Filter
+
+Lockfile
+
+Scopes and registries
+
+Overrides and resolutions
+
+Patch dependencies
+
+Bundler
+
+Bun.build
+
+Loaders
+
+Plugins
+
+Macros
+
+vs esbuild
+
+Test runner
+
+bun test
+
+Writing tests
+
+Watch mode
+
+Lifecycle hooks
+
+Mocks
+
+Snapshots
+
+Dates and times
+
+DOM testing
+
+Code coverage
+
+Package runner
+
+bunx
+
+API
+
+HTTP server
+
+Bun.serve()
+fetch request handler
+Changing the port and hostname
+Unix domain sockets
+Abstract namespace sockets
+Error handling
+error callback
+TLS
+Sever name indication (SNI)
+Object syntax
+Streaming files
+Benchmarks
+Reference
+WebSockets
+
+Workers
+
+Binary data
+
+Streams
+
+File I/O
+
+import.meta
+
+SQLite
+
+FileSystemRouter
+
+TCP sockets
+
+UDP sockets
+
+Globals
+
+$ Shell
+
+Child processes
+
+Transpiler
+
+Hashing
+
+Console
+
+FFI
+
+HTMLRewriter
+
+Testing
+
+Utils
+
+Node-API
+
+Glob
+
+DNS
+
+Semver
+
+Project
+
+Roadmap
+
+Benchmarking
+
+Contributing
+
+Building Windows
+
+License
+
+HTTP server
+GitHub logo
+Edit on GitHub
+
+The page primarily documents the Bun-native Bun.serve API. Bun also implements fetch and the Node.js http and https modules.
+
+These modules have been re-implemented to use Bun's fast internal HTTP infrastructure. Feel free to use these modules directly; frameworks like Express that depend on these modules should work out of the box. For granular compatibility information, see Runtime > Node.js APIs.
+
+To start a high-performance HTTP server with a clean API, the recommended approach is Bun.serve.
+
+Bun.serve()
+Start an HTTP server in Bun with Bun.serve.
+
+Bun.serve({
+  fetch(req) {
+    return new Response("Bun!");
+  },
+});
+fetch request handler
+The fetch handler handles incoming requests. It receives a Request object and returns a Response or Promise<Response>.
+
+Bun.serve({
+  fetch(req) {
+    const url = new URL(req.url);
+    if (url.pathname === "/") return new Response("Home page!");
+    if (url.pathname === "/blog") return new Response("Blog!");
+    return new Response("404!");
+  },
+});
+The fetch handler supports async/await:
+
+import { sleep, serve } from "bun";
+serve({
+  async fetch(req) {
+    const start = performance.now();
+    await sleep(10);
+    const end = performance.now();
+    return new Response(`Slept for ${end - start}ms`);
+  },
+});
+Promise-based responses are also supported:
+
+Bun.serve({
+  fetch(req) {
+    // Forward the request to another server.
+    return fetch("https://example.com");
+  },
+});
+You can also access the Server object from the fetch handler. It's the second argument passed to the fetch function.
+
+// `server` is passed in as the second argument to `fetch`.
+const server = Bun.serve({
+  fetch(req, server) {
+    const ip = server.requestIP(req);
+    return new Response(`Your IP is ${ip}`);
+  },
+});
+Changing the port and hostname
+To configure which port and hostname the server will listen on, set port and hostname in the options object.
+
+Bun.serve({
+  port: 8080, // defaults to $BUN_PORT, $PORT, $NODE_PORT otherwise 3000
+  hostname: "mydomain.com", // defaults to "0.0.0.0"
+  fetch(req) {
+    return new Response("404!");
+  },
+});
+To randomly select an available port, set port to 0.
+
+const server = Bun.serve({
+  port: 0, // random port
+  fetch(req) {
+    return new Response("404!");
+  },
+});
+
+// server.port is the randomly selected port
+console.log(server.port);
+You can view the chosen port by accessing the port property on the server object, or by accessing the url property.
+
+console.log(server.port); // 3000
+console.log(server.url); // http://localhost:3000
+Configuring a default port
+Bun supports several options and environment variables to configure the default port. The default port is used when the port option is not set.
+
+--port CLI flag
+bun --port=4002 server.ts
+BUN_PORT environment variable
+BUN_PORT=4002 bun server.ts
+PORT environment variable
+PORT=4002 bun server.ts
+NODE_PORT environment variable
+NODE_PORT=4002 bun server.ts
+Unix domain sockets
+To listen on a unix domain socket, pass the unix option with the path to the socket.
+
+Bun.serve({
+  unix: "/tmp/my-socket.sock", // path to socket
+  fetch(req) {
+    return new Response(`404!`);
+  },
+});
+Abstract namespace sockets
+Bun supports Linux abstract namespace sockets. To use an abstract namespace socket, prefix the unix path with a null byte.
+
+Bun.serve({
+  unix: "\0my-abstract-socket", // abstract namespace socket
+  fetch(req) {
+    return new Response(`404!`);
+  },
+});
+Unlike unix domain sockets, abstract namespace sockets are not bound to the filesystem and are automatically removed when the last reference to the socket is closed.
+
+Error handling
+To activate development mode, set development: true.
+
+Bun.serve({
+  development: true,
+  fetch(req) {
+    throw new Error("woops!");
+  },
+});
+In development mode, Bun will surface errors in-browser with a built-in error page.
+
+
+Bun's built-in 500 page
+error callback
+To handle server-side errors, implement an error handler. This function should return a Response to serve to the client when an error occurs. This response will supersede Bun's default error page in development mode.
+
+Bun.serve({
+  fetch(req) {
+    throw new Error("woops!");
+  },
+  error(error) {
+    return new Response(`<pre>${error}\n${error.stack}</pre>`, {
+      headers: {
+        "Content-Type": "text/html",
+      },
+    });
+  },
+});
+Learn more about debugging in Bun
+
+The call to Bun.serve returns a Server object. To stop the server, call the .stop() method.
+
+const server = Bun.serve({
+  fetch() {
+    return new Response("Bun!");
+  },
+});
+
+server.stop();
+TLS
+Bun supports TLS out of the box, powered by BoringSSL. Enable TLS by passing in a value for key and cert; both are required to enable TLS.
+
+Bun.serve({
+  fetch(req) {
+    return new Response("Hello!!!");
+  },
+
+  tls: {
+    key: Bun.file("./key.pem"),
+    cert: Bun.file("./cert.pem"),
+  }
+});
+The key and cert fields expect the contents of your TLS key and certificate, not a path to it. This can be a string, BunFile, TypedArray, or Buffer.
+
+Bun.serve({
+  fetch() {},
+
+  tls: {
+    // BunFile
+    key: Bun.file("./key.pem"),
+    // Buffer
+    key: fs.readFileSync("./key.pem"),
+    // string
+    key: fs.readFileSync("./key.pem", "utf8"),
+    // array of above
+    key: [Bun.file("./key1.pem"), Bun.file("./key2.pem")],
+  },
+});
+If your private key is encrypted with a passphrase, provide a value for passphrase to decrypt it.
+
+Bun.serve({
+  fetch(req) {
+    return new Response("Hello!!!");
+  },
+
+  tls: {
+    key: Bun.file("./key.pem"),
+    cert: Bun.file("./cert.pem"),
+    passphrase: "my-secret-passphrase",
+  }
+});
+Optionally, you can override the trusted CA certificates by passing a value for ca. By default, the server will trust the list of well-known CAs curated by Mozilla. When ca is specified, the Mozilla list is overwritten.
+
+Bun.serve({
+  fetch(req) {
+    return new Response("Hello!!!");
+  },
+  tls: {
+    key: Bun.file("./key.pem"), // path to TLS key
+    cert: Bun.file("./cert.pem"), // path to TLS cert
+    ca: Bun.file("./ca.pem"), // path to root CA certificate
+  }
+});
+To override Diffie-Hellman parameters:
+
+Bun.serve({
+  // ...
+  tls: {
+    // other config
+    dhParamsFile: "/path/to/dhparams.pem", // path to Diffie Hellman parameters
+  },
+});
+Sever name indication (SNI)
+To configure the server name indication (SNI) for the server, set the serverName field in the tls object.
+
+Bun.serve({
+  // ...
+  tls: {
+    // ... other config
+    serverName: "my-server.com", // SNI
+  },
+});
+To allow multiple server names, pass an array of objects to tls, each with a serverName field.
+
+Bun.serve({
+  // ...
+  tls: [
+    {
+      key: Bun.file("./key1.pem"),
+      cert: Bun.file("./cert1.pem"),
+      serverName: "my-server1.com",
+    },
+    {
+      key: Bun.file("./key2.pem"),
+      cert: Bun.file("./cert2.pem"),
+      serverName: "my-server2.com",
+    },
+  ],
+});
+Object syntax
+Thus far, the examples on this page have used the explicit Bun.serve API. Bun also supports an alternate syntax.
+
+server.ts
+import {type Serve} from "bun";
+
+export default {
+  fetch(req) {
+    return new Response("Bun!");
+  },
+} satisfies Serve;
+Instead of passing the server options into Bun.serve, export default it. This file can be executed as-is; when Bun sees a file with a default export containing a fetch handler, it passes it into Bun.serve under the hood.
+
+Streaming files
+To stream a file, return a Response object with a BunFile object as the body.
+
+Bun.serve({
+  fetch(req) {
+    return new Response(Bun.file("./hello.txt"));
+  },
+});
+⚡️ Speed — Bun automatically uses the sendfile(2) system call when possible, enabling zero-copy file transfers in the kernel—the fastest way to send files.
+
+You can send part of a file using the slice(start, end) method on the Bun.file object. This automatically sets the Content-Range and Content-Length headers on the Response object.
+
+Bun.serve({
+  fetch(req) {
+    // parse `Range` header
+    const [start = 0, end = Infinity] = req.headers
+      .get("Range") // Range: bytes=0-100
+      .split("=") // ["Range: bytes", "0-100"]
+      .at(-1) // "0-100"
+      .split("-") // ["0", "100"]
+      .map(Number); // [0, 100]
+
+    // return a slice of the file
+    const bigFile = Bun.file("./big-video.mp4");
+    return new Response(bigFile.slice(start, end));
+  },
+});
+Benchmarks
+Below are Bun and Node.js implementations of a simple HTTP server that responds Bun! to each incoming Request.
+
+Bun
+Node
+Bun.serve({
+  fetch(req: Request) {
+    return new Response("Bun!");
+  },
+  port: 3000,
+});
+The Bun.serve server can handle roughly 2.5x more requests per second than Node.js on Linux.
+
+Runtime	Requests per second
+Node 16	~64,000
+Bun	~160,000
+image
+Reference
+
+PREVIOUS
+
+bunx
+
+NEXT
+
+WebSockets
+
+GitHub logo
+Edit on GitHub
